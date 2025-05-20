@@ -1,15 +1,19 @@
 import {Router} from "express"
-import { database } from "./db.js"
+import { connection, database } from "./db.js"
+
 const dadosUsuario = [
     "name","email","password"
 ]
+
 export const userRoutes = Router()
 
-userRoutes.get("",(req,res)=>{
-    const users = database.users
+userRoutes.get("",async (req,res)=>{
+    // const users = database.users
+    // return res.status(200).json(users)
+    const users = await pool.query("select * from usuarios;")
     return res.status(200).json(users)
 })
-userRoutes.post("",(req,res)=>{
+userRoutes.post("",async(req,res)=>{
     const obj = {}
     for(const key in req.body){
         if(dadosUsuario.includes(key)){
@@ -23,9 +27,15 @@ userRoutes.post("",(req,res)=>{
              ${dadosUsuario.map((dado)=>dado)}`})
     }
     const user = obj
-    user.id = String(new Date().getTime())
+    user.id = parseInt((new Date().getTime()/1000))
     
-    database.users.push(user)
+    //database.users.push(user)
+    console.log(user,"user")
+    const text = 'INSERT INTO usuarios(id, name, email, password) VALUES($1, $2,$3,$4) RETURNING *'
+    const values = [user.id, user.name,user.email,user.password]
+    const query = await  connection.query(text,values)
+    // await pool.end()
+    console.log(query,"query")
     return res.status(201).json(user)
 })
 userRoutes.get("/:id",(req,res)=>{
