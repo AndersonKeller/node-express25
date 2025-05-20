@@ -1,7 +1,7 @@
-import {Pool} from "pg"
+import {Client} from "pg"
 
 
-export const connection = new Pool({
+export const connection = new Client({
     port:5432,
     database:"senac",
     host:"localhost",

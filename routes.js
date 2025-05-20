@@ -1,5 +1,7 @@
 import {Router} from "express"
-import { connection, database } from "./db.js"
+import { connection } from "./db.js"
+import { createUsuario, returnUsuario, updateUsuarioSchema } from "./schemas/usuario.schemas.js"
+import { validateDataMiddleware } from "./middleware/validateData.middleware.js"
 
 const dadosUsuario = [
     "name","email","password"
@@ -10,56 +12,79 @@ export const userRoutes = Router()
 userRoutes.get("",async (req,res)=>{
     // const users = database.users
     // return res.status(200).json(users)
-    const users = await pool.query("select * from usuarios;")
-    return res.status(200).json(users)
-})
-userRoutes.post("",async(req,res)=>{
-    const obj = {}
-    for(const key in req.body){
-        if(dadosUsuario.includes(key)){
-            obj[key] = req.body[key]
+    const usersDb = await connection.query("select * from usuarios;")
+    const users = usersDb.rows
+    const returnUsers = users.map((user)=>{
+        const obj = {}
+        for(const key in user){
+           // console.log(key,user[key])
+            if(returnUsuario.includes(key)){
+                obj[key] = user[key]
+            }
         }
-    }
-    const infos = Object.keys(obj)
+        return obj
+    })
+    return res.status(200).json(returnUsers)
+})
+userRoutes.post("",validateDataMiddleware(createUsuario), async(req,res)=>{
+    
+    const infos = Object.keys(req.body)
     if(infos.length < dadosUsuario.length){
         return res.status(403).
         json({message:`Dados inválidos, os dados que devem ser enviados são:
              ${dadosUsuario.map((dado)=>dado)}`})
     }
-    const user = obj
-    user.id = parseInt((new Date().getTime()/1000))
-    
-    //database.users.push(user)
-    console.log(user,"user")
-    const text = 'INSERT INTO usuarios(id, name, email, password) VALUES($1, $2,$3,$4) RETURNING *'
-    const values = [user.id, user.name,user.email,user.password]
+    const user = req.body
+  
+    const text = 'INSERT INTO usuarios( name, email, password) VALUES($1, $2,$3) RETURNING *'
+    const values = [user.name,user.email,user.password]
     const query = await  connection.query(text,values)
     // await pool.end()
-    console.log(query,"query")
-    return res.status(201).json(user)
+    const returnUser = {}
+    for(const key in query.rows[0]){
+        if(returnUsuario.includes(key)){
+            returnUser[key] = query.rows[0][key]
+        }
+    }
+    return res.status(201).json(returnUser)
 })
-userRoutes.get("/:id",(req,res)=>{
-    const findUser = database.users.find((user)=>user.id === req.params.id)
-    if(!findUser){
+userRoutes.get("/:id",async (req,res)=>{
+    const text = 'select * from usuarios where id = $1'
+    const values = [req.params.id]
+    const findUser = await connection.query(text,values)
+    console.log(findUser,"findUSer")
+    if(findUser.rows.length === 0){
        return res.status(404).json({message:"Usuário não encontrado"})
     }
-    return res.status(200).json(findUser)
+    const user = findUser.rows[0]
+    const obj = {}
+    for(const key in user){
+        if(returnUsuario.includes(key)){
+            obj[key] = user[key]
+        }
+    }
+    return res.status(200).json(obj)
     
 })
-userRoutes.delete("/:id",(req,res)=>{
-    const findIndex = database.users.findIndex((user)=>user.id === req.params.id)
-      if(findIndex === -1){
+userRoutes.delete("/:id",async (req,res)=>{
+    const text = 'select * from usuarios where id = $1'
+    const values = [req.params.id]
+    const findUser = await connection.query(text,values)
+      if(findUser.rows.length === 0){
        return res.status(404).json({message:"Usuário não encontrado"})
     }
-    database.users.splice(findIndex,1)
+    const deleteText = 'delete from usuarios where id = $1'
+    await connection.query(deleteText,values)
     return res.status(204).send()
 })
-userRoutes.patch("/:id",(req,res)=>{
-     const findIndex = database.users.findIndex((user)=>user.id === req.params.id)
-      if(findIndex === -1){
+userRoutes.patch("/:id",validateDataMiddleware(updateUsuarioSchema), async (req,res)=>{
+     const text = 'select * from usuarios where id = $1'
+    const values = [req.params.id]
+    const findUser = await connection.query(text,values)
+      if(findUser.rows.length === 0){
        return res.status(404).json({message:"Usuário não encontrado"})
     }
-    const oldUser = database.users[findIndex]
+    const oldUser = findUser.rows[0]
     const obj = {}
     for(const key in req.body){
         if(dadosUsuario.includes(key)){
@@ -68,8 +93,16 @@ userRoutes.patch("/:id",(req,res)=>{
     }
     const updateUser = {
         ...oldUser,
-        ...obj,
+        ...obj, 
     }
-    database.users[findIndex] = updateUser
-    return res.status(200).json(updateUser)
+    const updateQuery = `update usuarios set name = $2,email = $3, password=$4 where id = $1 RETURNING *`
+    const uodateValues = [req.params.id,updateUser.name,updateUser.email,updateUser.password]
+    const updateUserDb = await connection.query(updateQuery,uodateValues)
+    const objUpdate = {}
+    for(const key in updateUserDb.rows[0]){
+        if(returnUsuario.includes(key)){
+            objUpdate[key] = updateUserDb.rows[0][key]
+        }
+    }
+    return res.status(200).json(objUpdate)
 })
