@@ -1,7 +1,7 @@
 import {Router} from "express"
-import { connection } from "./db.js"
-import { createUsuario, returnUsuario, updateUsuarioSchema } from "./schemas/usuario.schemas.js"
-import { validateDataMiddleware } from "./middleware/validateData.middleware.js"
+import { connection } from "../db.js"
+import { createUsuario, returnUsuario, updateUsuarioSchema } from "../schemas/usuario.schemas.js"
+import { validateDataMiddleware } from "../middleware/validateData.middleware.js"
 
 const dadosUsuario = [
     "name","email","password"
@@ -37,7 +37,8 @@ userRoutes.post("",validateDataMiddleware(createUsuario), async(req,res)=>{
     const user = req.body
   
     const text = 'INSERT INTO usuarios( name, email, password) VALUES($1, $2,$3) RETURNING *'
-    const values = [user.name,user.email,user.password]
+    const hash = btoa(user.password)
+    const values = [user.name,user.email,hash]
     const query = await  connection.query(text,values)
     // await pool.end()
     const returnUser = {}
